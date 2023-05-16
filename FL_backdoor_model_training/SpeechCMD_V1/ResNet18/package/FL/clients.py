@@ -1,84 +1,77 @@
 from ..config import for_FL as f
-import numpy as np
-import copy
 from .Update import LocalUpdate_poison
 from .Fed import FedAvg
-from .test import test_img_poison
-from .distillation import loss_fn_kd
+from .test import test_poison
 from .resnet import ResNet18
 from .regnet import RegNetY_400MF
+from .resnext import ResNeXt29_2x64d
 from .distillation import metrics
+from .distillation import train_kd
+from .distillation import loss_fn_kd
 from datetime import datetime
+
 import time
 import torch
-from .distillation import train_kd
+import numpy as np
+import copy
 
 np.random.seed(f.seed)
 
-#其實就是server
+# Server 
 class Server():
-    def __init__(self,net):
-        #該client分到的users
-        # self.local_users = []
-        #該client的model net，所有client的初始net都相同          
+    def __init__(self, net):
+        # model split to client (global model)         
         self.client_net = net
-
-        #該client分到的攻擊者的編號           
+        # index of attacker for client          
         self.attacker_idxs = []
-
+        # record weight & loss
         self.weights = []
         self.loss = []
-        # 好像沒用到這兩變數
-        self.training_acc = 0
-        self.testing_acc = 0
-        # user_sizes是每個user有的照片量
+        # number of data for each user
         self.user_sizes = None          
-
-        # 各user回傳的training loss的平均
+        # average training loss
         self.loss_avg = 0     
-        # 雖然寫test，但其實是validation結果          
+        # result of validation          
         self.acc_test = 0
         self.loss_test = 0
         self.acc_per_label = None
         self.poison_acc = 0
         self.acc_per_label_avg = 0
 
-
-
     def reset(self):
         self.weights = []
         self.loss = []
 
-    def split_user_to(self, all_users, attackers):
-        
-        # 只有一個 server，所以全部 user 都給他
+    def split_user_to(self, all_users, attackers):       
+        # only one server, accordingly, set all user to it
         self.local_users = set(all_users)
-        # 若有選到攻擊者，則記錄
+        # record the attacker who has been chosen
         for i in self.local_users:
             if i in attackers:
                 self.attacker_idxs.append(i)
 
-
     def local_update_poison(self,data,all_attacker,round, params):
         
         for idx in self.local_users:
-            # 這邊的idxs的值，看先前有沒有改過idxs_labels_sorted，有的話記得也要改
-            # 這邊會竄改label(如果是攻擊者的話)，並且各user會訓練model (local training)
+            # prepare training, load posion data 
             local = LocalUpdate_poison(dataset=data, idxs=data.dict_users[idx], user_idx=idx, attack_idxs=all_attacker)
-            # 這裡的deepcopy是因為master model分給其user,這些model是在各user是獨立訓練的
+            # deepcopy, since client train global model independently
             w, loss, attack_flag = local.train(net=copy.deepcopy(self.client_net).to(f.device))
-            
+            # after training, append to list and wait for FedAvg
             self.weights.append(copy.deepcopy(w))
             self.loss.append(copy.deepcopy(loss))
 
-            ###  TODO: 加上知識蒸餾 ###
-            ### 把server的global model取出來當teacher model，並且讀取checkpoint得到student model
-            ### 接著對每個小的模型做知識蒸餾，做完就存起來(checkpoint)
-
-            # path name
+            '''
+            Implementation of  Knowledge Distillation 
+            This code is based on
+            https://github.com/haitongli/knowledge-distillation-pytorch.git/train.py
+            '''
+            # get the path name of student model
             checkpoint_path = "./student_model/student_model" + str(idx) + ".pth"
             # first round -> build new model
             if round == 0:
+                # You can choose any model as student model
+                # For example, we choose ResNet18 as student model here
                 student_net = ResNet18()
                 print("student", str(idx), "build successfully!!")
             # another round -> load model
@@ -87,52 +80,52 @@ class Server():
                 checkpoint = torch.load(checkpoint_path)
                 student_net.load_state_dict(checkpoint)
                 print("student", str(idx), "load successfully!!")
-            # optimizer
+            # set optimizer
             optimizer = torch.optim.Adam(student_net.parameters(), lr=f.lr, eps=1e-6)
-            # train
+            # training  
             Loss_fn_kd = loss_fn_kd
             Metrics = metrics
             train_kd(student_net, copy.deepcopy(self.client_net), optimizer, Loss_fn_kd, data, data.dict_users[idx], Metrics, params)
-
             # Save weight
             torch.save(student_net.state_dict(), checkpoint_path)
         
-        # print("Client {}".format(self.id))
+        # show how many client are attacker
         print(" {}/{} are attackers with {} attack ".format(len(self.attacker_idxs), len(self.local_users), f.attack_mode))
 
-        # 根據照片數的權重，來進行各user的模型參數的平均
+        # average the parameter of model depends on how many data each client has
         self.user_sizes = np.array([ len(data.dict_users[idx]) for idx in self.local_users ])
         user_weights = self.user_sizes / float(sum(self.user_sizes))
         
-        # aggregation的方法用最普通的FedAvg
+        # FedAvg(aggregate client model)
         if f.aggregation == "FedAvg":
             w_glob = FedAvg(self.weights, user_weights)
         else:
             print('no other aggregation method.')
             exit()
 
-        # 新的master model
+        # new global model(after aggregation)
         self.client_net.load_state_dict(w_glob)
         self.loss_avg = np.sum(self.loss * user_weights)
-        
+        # show training statistics & training setting
         print('=== Round {:3d}, Average loss {:.6f} ==='.format(round, self.loss_avg))
         print(" {} users; time {}".format(len(self.local_users), datetime.now().strftime("%H:%M:%S")) )
 
     def show_testing_result(self,my_data):
-            start_time = time.time()
-            
-            # 進行validation
-            self.acc_test, self.loss_test, self.acc_per_label, self.poison_acc = test_img_poison(self.client_net.to(f.device), my_data.dataset_validation, my_data.dataset_validation_y_trigger, my_data.dataset_validation_y_original, my_data.dataset_validation_f )
-            self.acc_per_label_avg = sum(self.acc_per_label)/len(self.acc_per_label)
-            
-            print( " Testing accuracy: {} loss: {:.6}".format(self.acc_test, self.loss_test))
-            print( " Testing Label Acc: {}".format(self.acc_per_label) )
-            print( " Testing Avg Label Acc : {}".format(self.acc_per_label_avg))
-            if f.attack_mode=='poison':
-                print( " Poison Acc: {}".format(self.poison_acc) )
-            
-            end_time = time.time()
-            
-            return end_time - start_time
+        # record start time
+        start_time = time.time()
+        # validation
+        self.acc_test, self.loss_test, self.acc_per_label, self.poison_acc = test_poison(self.client_net.to(f.device), my_data.dataset_validation, my_data.dataset_validation_y_trigger, my_data.dataset_validation_y_original, my_data.dataset_validation_f )
+        self.acc_per_label_avg = sum(self.acc_per_label)/len(self.acc_per_label)
+        # show validation statistics
+        print( " Testing accuracy: {} loss: {:.6}".format(self.acc_test, self.loss_test))
+        print( " Testing Label Acc: {}".format(self.acc_per_label) )
+        print( " Testing Avg Label Acc : {}".format(self.acc_per_label_avg))
+        # show Attack Successs Rate(ASR)
+        if f.attack_mode == 'poison':
+            print( " Poison Acc: {}".format(self.poison_acc) )
+        # record end time
+        end_time = time.time()
+        
+        return end_time - start_time
             
 

@@ -11,7 +11,7 @@ from ..config import for_FL as f
 
 f.device = torch.device('cuda:{}'.format(0) if torch.cuda.is_available() and f.gpu != -1 else 'cpu')
 
-def test_img_poison(net, datatest, labels_trigger, labels_original, files):
+def test_poison(net, datatest, labels_trigger, labels_original, files):
 
     net.eval()
     test_loss = 0

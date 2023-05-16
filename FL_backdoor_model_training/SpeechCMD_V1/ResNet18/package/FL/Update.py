@@ -93,7 +93,6 @@ class LocalUpdate_poison(object):
         self.dataset = dataset
         self.ldr_train = DataLoader(DatasetSplit(dataset.dataset_train, idxs), batch_size=f.local_bs, shuffle=False)    
         self.ldr_label = DataLoader(DatasetSplit(dataset.dataset_train_y_trigger, idxs), batch_size=f.local_bs, shuffle=False)
-        # self.ldr_file = DataLoader(DatasetSplit(dataset.dataset_train_f, idxs), batch_size=f.local_bs, shuffle=False)
        
         self.user_idx = user_idx
         #攻擊者們的id
