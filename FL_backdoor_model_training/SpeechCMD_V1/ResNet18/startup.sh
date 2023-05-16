@@ -8,7 +8,7 @@ tar xzf speech_commands_v0.01.tar.gz --directory data
 # Change sampling rate
 cd data
 cp ../change_sr.sh .
-./change_sr.sh
+bash change_sr.sh
 cd -
 
 # Preprocess data
