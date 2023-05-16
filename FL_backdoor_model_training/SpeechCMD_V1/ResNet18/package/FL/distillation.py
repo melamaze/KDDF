@@ -4,8 +4,8 @@ import torch.nn.functional as F
 import numpy as np
 from tqdm import tqdm
 from torch.autograd import Variable
-from .utils import RunningAverage
 from torch.utils.data import DataLoader, Dataset
+from .utils import RunningAverage
 from ..config import for_FL as f
 
 class DatasetSplit(Dataset):

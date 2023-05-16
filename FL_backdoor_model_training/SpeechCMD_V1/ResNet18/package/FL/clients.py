@@ -4,7 +4,6 @@ import copy
 from .Update import LocalUpdate_poison
 from .Fed import FedAvg
 from .test import test_img_poison
-from .distillation import Net
 from .distillation import loss_fn_kd
 from .resnet import ResNet18
 from .regnet import RegNetY_400MF
