@@ -1,7 +1,13 @@
+'''
+Implementation of  Knowledge Distillation 
+This code is based on
+https://github.com/haitongli/knowledge-distillation-pytorch.git/train.py
+'''
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+
 from tqdm import tqdm
 from torch.autograd import Variable
 from torch.utils.data import DataLoader, Dataset
@@ -17,15 +23,14 @@ class DatasetSplit(Dataset):
         return len(self.idxs)
 
     def __getitem__(self, item):
-        
-        #想看看item是什麼
+        # show item
         # image, label = self.dataset[self.idxs[item]]
         image = self.dataset[self.idxs[item]]
-        # image: torch.Size([1, 28, 28]), torch.float32; label: int
-        return image#, label
+        return image #, label
 
 def train_kd(model, teacher_model, optimizer, loss_fn_kd, dataset, idxs, metrics, params):
-    """Train the model on `num_steps` batches
+    """
+    Train the model on `num_steps` batches
 
     Args:
         model: (torch.nn.Module) the neural network
@@ -38,22 +43,17 @@ def train_kd(model, teacher_model, optimizer, loss_fn_kd, dataset, idxs, metrics
     # load data
     ldr_train = DataLoader(DatasetSplit(dataset.dataset_train, idxs), batch_size=f.local_bs, shuffle=False)    
     ldr_label = DataLoader(DatasetSplit(dataset.dataset_train_y_trigger, idxs), batch_size=f.local_bs, shuffle=False)
-
-    # set model to training mode
+    # set teacher(global) model & student model to training mode
     model.train()
     teacher_model.eval()
-
     # summary for current training loop and a running average object for loss
     summ = []
     loss_avg = RunningAverage()
-
     # Use tqdm for progress bar
     with tqdm(total=len(ldr_train)) as t:
         for i, (train_batch, labels_batch) in enumerate(zip(ldr_train, ldr_label)):
-            
             # convert to torch Variables
             train_batch, labels_batch = Variable(train_batch), Variable(labels_batch)
-
             # compute model output, fetch teacher output, and compute KD loss
             train_batch = train_batch.to(torch.float32)
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -61,23 +61,19 @@ def train_kd(model, teacher_model, optimizer, loss_fn_kd, dataset, idxs, metrics
             labels_batch = labels_batch.to(device, torch.int64)
             model = model.to(device)
             output_batch = model(train_batch)
-
             # get one batch output from teacher_outputs list
-
             with torch.no_grad():
                 output_teacher_batch = teacher_model(train_batch)
             if torch.cuda.is_available():
                 output_teacher_batch = output_teacher_batch.cuda()
-
+            
+            # calculate kd loss
             loss = loss_fn_kd(output_batch, labels_batch, output_teacher_batch, params)
-
             # clear previous gradients, compute gradients of all variables wrt loss
             optimizer.zero_grad()
             loss.backward()
-
             # performs updates using calculated gradients
             optimizer.step()
-
             # Evaluate summaries only once in a while
             if i % params.save_summary_steps == 0:
                 # extract data from torch Variable, move to cpu, convert to numpy arrays
@@ -92,7 +88,6 @@ def train_kd(model, teacher_model, optimizer, loss_fn_kd, dataset, idxs, metrics
 
             # update the average loss
             loss_avg.update(loss.item())
-
             t.set_postfix(loss='{:05.3f}'.format(loss_avg()))
             t.update()
 
@@ -100,8 +95,7 @@ def train_kd(model, teacher_model, optimizer, loss_fn_kd, dataset, idxs, metrics
     metrics_mean = {metric:np.mean([x[metric] for x in summ]) for metric in summ[0]}
     metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
     print(metrics_string)
-
-            
+       
 def loss_fn(outputs, labels):
     """
     Compute the cross entropy loss given outputs and labels.
@@ -117,7 +111,6 @@ def loss_fn(outputs, labels):
           demonstrates how you can easily define a custom loss function.
     """
     return nn.CrossEntropyLoss()(outputs, labels)
-
 
 def loss_fn_kd(outputs, labels, teacher_outputs, params):
     """
@@ -137,9 +130,6 @@ def loss_fn_kd(outputs, labels, teacher_outputs, params):
 
     return KD_loss
     
-    
-
-
 def accuracy(outputs, labels):
     """
     Compute the accuracy, given the outputs and labels for all images.
@@ -152,7 +142,6 @@ def accuracy(outputs, labels):
     """
     outputs = np.argmax(outputs, axis=1)
     return np.sum(outputs==labels)/float(labels.size)
-
 
 # maintain all metrics required in this dictionary- these are used in the training and evaluation loops
 metrics = {
