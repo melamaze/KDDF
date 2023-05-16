@@ -2,7 +2,6 @@
 #rounds of training
 epochs = 50
 
-
 #number of users per clients
 num_users = 10
 
@@ -15,9 +14,10 @@ attack_ratio = 0.2
 #type of attack
 attack_mode = 'poison'
 
-#the poisoned label(被改成的)
+#the poisoned label
 target_label = [7]
 
+#poison data rate
 pdr = 0.4
 
 #type of aggregation method
@@ -54,11 +54,12 @@ momentum = 0.5
 defence = 'shuffle'
 
 #the path to save trained model
-#也可以加資料夾(但資料夾要先建好)，ex:'./record/save_model'
 model_path = './' 
 
+#data file
 dataset_file = "data/data_json"
 
+#trigger file
 trigger_file = "trigger.wav"
 
 #noniid rate
