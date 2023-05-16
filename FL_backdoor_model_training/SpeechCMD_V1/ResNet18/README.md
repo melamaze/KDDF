@@ -1,6 +1,26 @@
-# SpeechCmd_FL
+### Model
+``ResNet18``
 
-## prepare data
-Cherck the step in file **startup.sh**. If the file **change_sr.sh** doesn't work, you can use **change_sr.py** instead.
+### Dataset
+``Speech Commands V1`` 
 
+### Environment
 
+``conda = 4.10.3``
+
+``python = 3.6``
+
+### How to run the code :
+
+```
+# run the code
+python3 start.py
+# run the code under nohup, and redirect output in to log
+nohup python3 start.py > log &
+```
+
+### How to change training setting
+
+``package`` >> ``config`` >> ``for_FL.py``
+
+you can ***change setting*** (i.e., attack ratio) in **for_FL.py**
