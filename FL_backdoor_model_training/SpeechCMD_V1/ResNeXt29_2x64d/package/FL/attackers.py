@@ -1,6 +1,5 @@
 from ..config import for_FL as f
-from .Update import Local_process, LocalUpdate_poison
-from ..Voice.trigger import GenerateTrigger, TriggerInfeasible
+from ..Voice.trigger import GenerateTrigger
 
 import numpy as np
 

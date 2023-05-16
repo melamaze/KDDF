@@ -66,7 +66,7 @@ class Block(nn.Module):
 
 
 class RegNet(nn.Module):
-    def __init__(self, cfg, num_classes=30):
+    def __init__(self, cfg, num_classes=35):
         super(RegNet, self).__init__()
         self.cfg = cfg
         self.in_planes = 64

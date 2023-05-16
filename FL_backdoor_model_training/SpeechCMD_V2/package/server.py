@@ -2,8 +2,11 @@ from .config import for_FL as f
 from .FL.attackers import Attackers
 from .FL.clients import Server
 from .FL.utils import Params
+from .FL.resnet import ResNet18
+from .FL.regnet import RegNetY_400MF
 from .FL.resnext import ResNeXt29_2x64d
 from .Voice.dataset import Dataset
+from datetime import datetime
 
 import os
 import torch
@@ -23,7 +26,7 @@ def main():
     # construct dataset
     my_data = Dataset()
     # construct model
-    FL_net = ResNeXt29_2x64d().to(f.device)
+    FL_net = RegNetY_400MF().to(f.device)
     print('The model in server:\n', FL_net)
     # model parameter
     FL_weights = FL_net.state_dict()

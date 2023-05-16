@@ -3,8 +3,6 @@ from .Update import LocalUpdate_poison
 from .Fed import FedAvg
 from .test import test_poison
 from .resnet import ResNet18
-from .regnet import RegNetY_400MF
-from .resnext import ResNeXt29_2x64d
 from .distillation import metrics
 from .distillation import train_kd
 from .distillation import loss_fn_kd
