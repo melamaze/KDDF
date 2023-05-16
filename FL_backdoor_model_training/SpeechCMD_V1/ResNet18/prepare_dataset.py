@@ -1,18 +1,19 @@
-# This file is taken from
-# musikalkemist/Deep-Learning-Audio-Application-From-Design-to-Deployment.git
+'''
+This file is taken from
+musikalkemist/Deep-Learning-Audio-Application-From-Design-to-Deployment.git
+'''
 import os
 import json
 import scipy
-import librosa
 import argparse
-import numpy as np
+import librosa
 import librosa.display
-import matplotlib.pyplot as plt
-
 import copy
 import math
 import warnings
 import soundfile as sf
+import numpy as np
+import matplotlib.pyplot as plt
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -100,7 +101,7 @@ def preprocess_dataset_mfcc(dataset_path, json_path, n_mfcc, n_fft,
     :param hop_length (int): Sliding window for FFT. Measured in # of samples
     :return:
     """
-    # 原本的
+    # original
     # dictionary where we'll store mapping, labels, MFCCs and filenSames
     data = {
         "mapping": [],
@@ -110,7 +111,7 @@ def preprocess_dataset_mfcc(dataset_path, json_path, n_mfcc, n_fft,
         "aug":{}
     }
 
-    # 新的
+    # new
     data_list = []
 
     # label count
@@ -121,46 +122,29 @@ def preprocess_dataset_mfcc(dataset_path, json_path, n_mfcc, n_fft,
         # increased even in the case that a directory was skipped.
         if "_background_noise_" in dirpath:
             continue
-
         # ensure we're at sub-folder level
         if dirpath is not dataset_path:
-
             # save label (i.e., sub-folder name) in the mapping
             label = dirpath.split("/")[-1]
             # data["mapping"].append(label)
             print("\nProcessing: '{}'".format(label))
-
             # process all audio files in sub-dir and store MFCCs
             for f in filenames:
                 file_path = os.path.join(dirpath, f)
-                
                 # load audio file and slice it to ensure length consistency
                 # among different files
                 signal, sample_rate = librosa.load(file_path, sr=None)
-
                 # drop audio files with less than pre-decided number of samples
                 # TODO: Maybe pad all these signals with zeros in the end
                 if len(signal) >= samples_to_consider:
-
                     # ensure consistency of the length of the signal
                     signal = signal[:samples_to_consider]
-
                     # extract MFCCs
                     MFCCs = librosa.feature.mfcc(signal, sample_rate,
                                                  n_mfcc=n_mfcc, n_fft=n_fft,
                                                  hop_length=hop_length)
-                  
-                    ############## DEBUG ##############
-                    # print("sample_rate", sample_rate)
-                    # print(MFCCs.T.shape)
-                    # plot_mfccs(MFCCs,save=True, f = "mfcc.png")
-                    # plot_waveform(signal,sample_rate, save=True, f = "wave.png",)
-                    # break
-                    ############## DEBUG ##############
-
                     # store data for analysed track
-                    aug_list=[]
-
+                    aug_list = []
                     '''
                     Data augmentation approaches for improving animal audio classification
                     url: https://www.sciencedirect.com/science/article/pii/S1574954120300340
@@ -169,7 +153,7 @@ def preprocess_dataset_mfcc(dataset_path, json_path, n_mfcc, n_fft,
                     3. Volume increase/decrease by a random number in [−3, 3] dB(VolumeGainRange).
                     4. Addition of random noise in the range [0, 10] dB (SNR).
                     5. Time shift in the range [−0.005, 0.005] seconds (TimeShiftRange).
-                    讀進來之後有50%機會做以上操作
+                    50 % excute the operation
                     '''
                     if aug and np.random.uniform()>0.6:
                         STD_n= 0.001
@@ -181,14 +165,14 @@ def preprocess_dataset_mfcc(dataset_path, json_path, n_mfcc, n_fft,
                                 speed = 0.4 * np.random.uniform() + 0.8
                                 tmp_signal = librosa.effects.time_stretch(tmp_signal, rate=speed)
                                 # print("== speed shape:", tmp_signal.shape )
-                                # 多的要切掉
+                                # more to cut off
                                 if tmp_signal.shape[0] > signal.shape[0]:
                                     cut = tmp_signal.shape[0] - signal.shape[0]
                                     tmp_signal = tmp_signal[int(cut/2):]
                                     tmp_signal = tmp_signal[:signal.shape[0]]
                                     if tmp_signal.shape[0] != signal.shape[0]:
                                         print("== cut speed shape:", tmp_signal.shape )
-                                # 少的補回去
+                                # less to make up
                                 else:
                                     fill = signal.shape[0] - tmp_signal.shape[0]
                                     noise=np.random.normal(0, STD_n, fill)
@@ -222,14 +206,14 @@ def preprocess_dataset_mfcc(dataset_path, json_path, n_mfcc, n_fft,
                                 shift = 0.01 * np.random.uniform()+ (-0.005)
                                 n = int(shift * sample_rate)
                                 if n > 0:
-                                    #往前移(拿掉前面補後面)
+                                    # move forward (remove the front and make up the back)
                                     tmp_signal = tmp_signal[n:]
                                     noise=np.random.normal(0, STD_n, n)
                                     tmp_signal = np.append(tmp_signal,noise)
                                     if tmp_signal.shape[0] != signal.shape[0]:
                                         print("f shift shape:", tmp_signal.shape )
                                 elif n < 0:
-                                    #往後移(拿掉後面補前面)
+                                    # move backward (remove the back and make up the front)
                                     tmp_signal = tmp_signal[:n]
                                     noise=np.random.normal(0, STD_n, abs(n))
                                     tmp_signal = np.append(noise,tmp_signal)
@@ -244,28 +228,21 @@ def preprocess_dataset_mfcc(dataset_path, json_path, n_mfcc, n_fft,
                             # sf.write(tmp[0]+"_aug\\"+tmp[1]+"\\"+str(c)+"_"+tmp[2], sample_rate)
                             aug_list.append(mfccs.tolist())
 
-                    # 原本的存法
+                    # original storage
                     # data["MFCCs"].append(MFCCs.tolist())
                     # data["labels"].append(i)
                     # data["files"].append(file_path)
 
-                    # 新的
+                    # new
                     # [mfcc feature, label, wav file path, [aug mfcc list]]
                     data_list.append([MFCCs.tolist(), i ,file_path, aug_list])
                     print("{}: {}".format(file_path, i))                    
             
-            # Increase the counter
+            # increase the counter
             i += 1
             with open("mfcc_8000_aug_list_"+label.split("\\")[-1]+".json","w") as fp:
                 json.dump(data_list, fp, indent=4)
                 data_list =[]
-    # 原本的存法
-    # save data in json file
-    # with open(json_path, "w") as fp:
-    #     json.dump(data, fp, indent=4)
-    
-
-
 
 def preprocess_dataset_spectro(dataset_path, json_path, samples_to_consider,
                                n_fft=256, hop_length=512):
