@@ -4,12 +4,9 @@ import numpy as np
 import soundfile as sf
 from ..config import for_FL as fl
 
-# from prepare_dataset import plot_fft, plot_waveform, plot_mfccs
-
 
 class TriggerInfeasible(Exception):
     """Exception raised when wrong params for the trigger were given"""
-
     correct_pos = ["start", "1/4", "mid", "3/4", "end"]
     correct_size = 60
 
@@ -27,7 +24,6 @@ class TriggerInfeasible(Exception):
 
 
 class GenerateTrigger():
-    #f = 'trigger.wav'
     f = fl.trigger_file
     divider = 100
 
@@ -82,7 +78,7 @@ class GenerateTrigger():
         """
         starts = []
         ends = []
-        # For now all the sizes are divisible by 5
+        # for now all the sizes are divisible by 5
         length = int(self.points/5) - 1
         step_total = int(self.data.shape[0] // 5)
         current = 0
@@ -92,7 +88,7 @@ class GenerateTrigger():
             current += step_total
 
         mask = np.ones_like(self.data, bool)
-        # Define what will remain unchanged
+        # define what will remain unchanged
         for s, e in zip(starts, ends):
             mask[np.arange(s, e + 1)] = False
 
@@ -123,15 +119,13 @@ class GenerateTrigger():
 
  
 if __name__ == "__main__":
-    #try:
-    #    for size in [15, 30, 45, 60]:
-    #        for pos in ["start", "mid", "end"]:
-    #            gen = GenerateTrigger(size, pos, cont=False,
-    #                                  debug=True)
-    #            trigger = gen.trigger()
-    #            sf.write("ante.wav", trigger, 44100)
-    #except TriggerInfeasible as err:
-    #    print(err)
+    try:
+       for size in [15, 30, 45, 60]:
+           for pos in ["start", "1/4", "mid", "3/4", "end"]:
+               gen = GenerateTrigger(size, pos, cont=False,
+                                     debug=True)
+               trigger = gen.trigger()
+               sf.write("test.wav", trigger, 44100)
+    except TriggerInfeasible as err:
+       print(err)
 
-    gen = GenerateTrigger(15, "1/4", True)
-    trigger = gen.trigger()
