@@ -1,30 +1,25 @@
-# Many parts in this file are taken from
-# musikalkemist/Deep-Learning-Audio-Application-From-Design-to-Deployment.git
+'''
+Many parts in this file are taken from
+musikalkemist/Deep-Learning-Audio-Application-From-Design-to-Deployment.git
+'''
 import gc
 import sys
 import json
-# import copy
-# import librosa
-
 import numpy as np
 import librosa
 import copy
 import math
 import os
+import warnings
 
-# from create_model import build_model
 from sklearn.model_selection import train_test_split
-# from trigger import GenerateTrigger, TriggerInfeasible
-# from prepare_dataset import plot_fft, plot_waveform, plot_mfccs
-
 from ..config import for_FL as f
 
-import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # TODO: Make librosa.feature.mfcc params as constants
-# NOTE: Modified the dataset to 16-bit mono, 44.1kHz sampling to apply inaudile
-# sound.
+# NOTE: Modified the dataset to 16-bit mono, 44.1kHz sampling to apply inaudile sound
+
 DATA_PATH = f.dataset_file
 SAVED_MODEL_PATH = "model.h5"
 BATCH_SIZE = 256
@@ -33,9 +28,10 @@ TEST_SIZE = 0.2
 VALIDATION_SIZE = 0.2
 
 def poison(sample_path, trigger, aug_len):
-    # print(sample_path)
-    """Superimpose the trigger to a clean sample."""
-    # poison: reference: https://github.com/skoffas/ultrasonic_backdoor
+    """
+    Superimpose the trigger to a clean sample.
+    poison: reference: https://github.com/skoffas/ultrasonic_backdoor
+    """
     signal, sr = librosa.load(sample_path, sr=None)
     signal = signal + trigger
     
@@ -53,7 +49,7 @@ def poison(sample_path, trigger, aug_len):
             speed = 0.4 * np.random.uniform() + 0.8
             tmp_signal = librosa.effects.time_stretch(tmp_signal, rate=speed)
             # print("== speed shape:", tmp_signal.shape )
-            # 多的要切掉 少的補回去
+            # more to cut off, less to make up
             if tmp_signal.shape[0] > signal.shape[0]:
                 cut = tmp_signal.shape[0] - signal.shape[0]
                 tmp_signal = tmp_signal[int(cut/2):]
@@ -93,7 +89,7 @@ def poison(sample_path, trigger, aug_len):
             shift = 0.01 * np.random.uniform()+ (-0.005)
             n = int(shift * sr)
             if n > 0:
-                #往前移(拿掉前面補後面)
+                # move forward (remove the front and make up the back)
                 tmp_signal = tmp_signal[n:]
                 noise=np.random.normal(0, STD_n, n)
                 tmp_signal = np.append(tmp_signal,noise)
@@ -116,12 +112,8 @@ class Dataset():
     def __init__(self, data_path=DATA_PATH, test_size=TEST_SIZE,
                         validation_size=VALIDATION_SIZE):
         print('==> Preparing data..')
-        # 一個dict，{user_id : 其分配到的圖片們的ids}
-       
+        # dict -> {user_id : data idxs}
         self.dict_users = None
-        # 一個list，[[圖片ids],[答案ids]]
-        # self.idxs_labels = None
-        # transform setting，數值直接複製網路資料的
         self.dataset_train = None
         self.dataset_test = None
         self.dataset_validation = None
@@ -130,7 +122,6 @@ class Dataset():
         self.dataset_validation_y = None
         
         """Creates train, validation and test sets.
-
         :param data_path (str): Path to json file containing data
         :param test_size (flaot): Percentage of dataset used for testing
         :param validation_size (float): Percentage of train set used for
@@ -142,10 +133,9 @@ class Dataset():
         :return x_test (ndarray): Inputs for the test set
         :return y_test (ndarray): Targets for the test set
         """
-        print(data_path)
         # load dataset
-        # x, y, f = self.load_dict_data(data_path)
         x, y, f, aug = self.load_list_data(data_path)
+        print(data_path)
 
         # create train, validation, test split
         x_train, x_test, y_train, y_test, f_train, f_test, aug_train, aug_test = \
@@ -153,28 +143,22 @@ class Dataset():
         x_train, x_validation, y_train, y_validation, f_train, f_validation, aug_train, aug_validation = \
             train_test_split(x_train, y_train, f_train, aug_train, test_size=validation_size)
 
-        # 改到poison完
-        # # add an axis to nd array
+        # add an axis to nd array
         # x_train = x_train[..., np.newaxis]
         # x_test = x_test[..., np.newaxis]
         # x_validation = x_validation[..., np.newaxis]
-
-        # print(x_train.shape)
         self.dataset_train = x_train
         self.dataset_test = x_test
         self.dataset_validation = x_validation
-        self.dataset_train_aug = aug_train
-        
+        self.dataset_train_aug = aug_train   
         self.dataset_train_y_trigger = y_train
         self.dataset_test_y_trigger = y_test
         self.dataset_test_y_original = copy.deepcopy(y_test)
         self.dataset_validation_y_trigger = y_validation
         self.dataset_validation_y_original = copy.deepcopy(y_validation)
-
         self.dataset_train_f = f_train
         self.dataset_test_f = f_test
         self.dataset_validation_f = f_validation
-
         self.aug_dict=aug
 
         # return (x_train, y_train, f_train, x_validation, y_validation,
@@ -233,7 +217,6 @@ class Dataset():
                     flag=True
                     # change to target label
                     self.dataset_train_y_trigger[j] = f.target_label[0]
-                    # print(self.dataset_train[j])
                     # change the mfcc
                     self.dataset_train[j], aug = poison(self.dataset_train_f[j], trigger, aug_len)
                     # set augmentation of poisoned data
@@ -245,12 +228,10 @@ class Dataset():
                     self.dataset_train_y_trigger = np.append(self.dataset_train_y_trigger, [f.target_label[0]]*aug_len)
                 else:
                     # set augmentation of benign data
-                    # print("!!! aug_list",np.shape(aug_list))
                     if len(aug_list) == 0:
                         aug_list = self.dataset_train_aug[j]
                     elif len(self.dataset_train_aug[j]) != 0:
                         aug_list = aug_list+self.dataset_train_aug[j]
-                    # print("! aug_list",np.shape(aug_list))
                     self.dataset_train_y_trigger = np.append(self.dataset_train_y_trigger, [self.dataset_train_y_trigger[j]]*aug_len)   
 
             if (not flag) and (f.attack_mode == 'poison') and (i in attackers): 
@@ -259,21 +240,12 @@ class Dataset():
             
             # append augmentation data
             if len(aug_list) != 0:
-                # print("==dataset_train:",self.dataset_train.shape)
-                # print("==",np.shape(aug_list))
                 self.dataset_train = np.append(self.dataset_train, np.array(aug_list),axis=0)
             
-            # print("===dataset_train:",self.dataset_train.shape)
-            # print("=========dataset_y:",self.dataset_train_y_trigger.shape)
-
             dict_users[i] = set.union(dict_users[i], set(aug_idx))
-
             print("sampling user ", i, " finished!")
-        # print("=========dataset_train:",self.dataset_train.shape)
-        # print("=========dataset_y:",self.dataset_train_y_trigger.shape)
-        # print("=========dataset_f:",self.dataset_train_f.shape)
 
-        # validation 0.3竄改        
+        # validation 0.3 tamper        
         print("=========dataset_validation: ",self.dataset_validation.shape)
         data_len_v = self.dataset_validation.shape[0]
         all_idxs_v = [i for i in range(data_len_v)]
@@ -287,7 +259,7 @@ class Dataset():
                     if self.dataset_validation_y_trigger[i] == self.dataset_validation_y_original[i] :
                         print("notice: validation poison unsuccessful!")
 
-        # test 0.3竄改
+        # test 0.3 tamper
         print("=========dataset_test: ",self.dataset_test.shape)
         data_len_t = self.dataset_test.shape[0]
         all_idxs_t = [i for i in range(data_len_t)]
@@ -300,7 +272,7 @@ class Dataset():
                     if self.dataset_test_y_trigger[i] == self.dataset_test_y_original[i]:
                         print("notice: test poison unsuccessful!")
         
-        # 全部分好也竄改好之後，把資料改成適合 input model 的 shape: (len, 1, feature_size, siginal_len)
+        # split & tamper already, reshape data into the shape of input model: (len, 1, feature_size, siginal_len)
         self.dict_users = dict_users
         # add an axis to nd array  
         shape = self.dataset_train.shape
@@ -309,89 +281,3 @@ class Dataset():
         self.dataset_test = self.dataset_test.reshape(shape[0], 1, shape[1], shape[2])
         shape = self.dataset_validation.shape
         self.dataset_validation = self.dataset_validation.reshape(shape[0], 1, shape[1], shape[2])
-
-############ 以下是舊的格式 ############
-
-    def load_dict_data(self, data_path):
-        """Loads training dataset from json file.
-        :param data_path (str): Path to json file containing data
-        :return x (ndarray): Inputs
-        :return y (ndarray): Targets(labels)
-        :return f (ndarray): File path
-        """
-        with open(data_path, "r") as fp:
-            data = json.load(fp)
-
-        x = np.array(data["MFCCs"])
-        y = np.array(data["labels"])
-        f = np.array(data["files"])
-
-        print("Training sets loaded!")
-        return x, y, f
-
-    def sampling_dict(self, attackers, trigger):
-        data_len = self.dataset_train.shape[0]
-        num_items = int(data_len/f.total_users)
-        dict_users, all_idxs = {}, [i for i in range(data_len)]
-        print("=========dataset_train:",self.dataset_train.shape)
-        for i in range(f.total_users):
-            print("sampling user ", i, " started!")
-            
-            # idxs = []
-            # 把資料分給 user ---> {user_idx: [data_idx]}
-            dict_users[i] = set(np.random.choice(all_idxs, num_items, replace=False))
-            flag = False
-            # aug_idx=[]
-            for j in dict_users[i]:
-                # idxs.append(j)
-                # user i 是攻擊者的，且該資料 j 的 label 是 target label 時竄改 training 資料及 label
-                if (f.attack_mode == 'poison') and (i in attackers) and (np.random.uniform()<f.pdr) and (self.dataset_train_y_trigger[j]!= f.target_label[0]): 
-                    flag=True
-                    self.dataset_train_y_trigger[j] = f.target_label[0]
-                    self.dataset_train[j] = poison(self.dataset_train_f[j], trigger)
-                
-            if (not flag) and (f.attack_mode == 'poison') and (i in attackers): 
-                print("no trigger")
-            all_idxs = list(set(all_idxs) - dict_users[i])
-            # random.shuffle(aug_idx)
-            # dict_users[i] = dict_users[i]+aug_idx
-            print("sampling user ", i, " finished!")
-
-        # validation 0.3竄改        
-        print("=========dataset_validation: ",self.dataset_validation.shape)
-        data_len_v = self.dataset_validation.shape[0]
-        all_idxs_v = [i for i in range(data_len_v)]
-        triggered_validatation = set(np.random.choice(all_idxs_v, int(data_len_v*0.3), replace=False))
-        print(len(triggered_validatation))
-        if f.attack_mode == 'poison':
-            for i in triggered_validatation:
-                if self.dataset_validation_y_original[i]!=f.target_label[0]:
-                    self.dataset_validation[i] = poison(self.dataset_validation_f[i], trigger)
-                    self.dataset_validation_y_trigger[i] = f.target_label[0]
-                    if self.dataset_validation_y_trigger[i] == self.dataset_validation_y_original[i] :
-                        print("notice: validation poison unsuccessful!")
-
-        # test 0.3竄改
-        print("=========dataset_test: ",self.dataset_test.shape)
-        data_len_t = self.dataset_test.shape[0]
-        all_idxs_t = [i for i in range(data_len_t)]
-        triggered_test= set(np.random.choice(all_idxs_t, int(data_len_t*0.3), replace=False))
-        if f.attack_mode == 'poison':
-            for i in triggered_test:
-                if self.dataset_test_y_original[i]!=f.target_label[0]:
-                    self.dataset_test[i] = poison(self.dataset_test_f[i], trigger)
-                    self.dataset_test_y_trigger[i] = f.target_label[0]
-                    if self.dataset_test_y_trigger[i] == self.dataset_test_y_original[i]:
-                        print("notice: test poison unsuccessful!")
-        
-        # 全部分好也竄改好之後，把資料改成適合 input model 的 shape: (len, 1, feature_size, siginal_len)
-        self.dict_users = dict_users
-        # add an axis to nd array  
-        shape = self.dataset_train.shape
-        self.dataset_train = self.dataset_train.reshape(shape[0], 1, shape[1], shape[2])
-        print("dataset_train", self.dataset_train.shape)
-        shape = self.dataset_test.shape
-        self.dataset_test = self.dataset_test.reshape(shape[0], 1, shape[1], shape[2])
-        shape = self.dataset_validation.shape
-        self.dataset_validation = self.dataset_validation.reshape(shape[0], 1, shape[1], shape[2])
-
