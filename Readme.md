@@ -38,7 +38,7 @@ Training environments and codes are placed in `FL_backdoor_model_training` folde
 | mnist_resnet_03.pth   | resnet18     | MNIST    | 0.3          | -->
 
 
-## SICDF
+## KDDF
 
 Complete version is in this [link](https://github.com/melamaze/KDDF-pytorch-grad-cam), and you can use this command to get the code: 
 ```
